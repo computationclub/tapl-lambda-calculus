@@ -1,3 +1,6 @@
+require 'rspec/expectations'
+include RSpec::Matchers
+
 App = Struct.new(:left, :right) do
   def to_s
     "(#{left} #{right})"
@@ -26,26 +29,33 @@ module Lambda
         replace(param: term.left.param, with: term.right, in: term.left.body)
       elsif term.left.is_a?(Abs) # E-App2
         App.new(term.left, eval(term.right))
-      else
-        raise "not implemented (App)"
+      else # E-App1
+        App.new(eval(term.left), term.right)
       end
     else
-      raise "not implemented (not App)"
+      raise "can't eval"
     end
   end
 
   def replace(opts)
     param = opts.fetch(:param)
     with = opts.fetch(:with)
-    body = opts.fetch(:in)
+    term = opts.fetch(:in)
 
-    case body
+    case term
     when Var
-      if body.name == param
+      if term.name == param
         with
       else
-        body
+        term
       end
+    when Abs
+      Abs.new(term.param, replace(param: param, with: with, in: term.body))
+    when App
+      App.new(
+        replace(param: param, with: with, in: term.left),
+        replace(param: param, with: with, in: term.right),
+      )
     end
   end
 end
@@ -57,10 +67,35 @@ id = Abs.new("x", Var.new("x"))
 id_app = App.new(id, id)
 Lambda.eval(id_app)
 
+expect(Lambda.replace(param: "x", with: Var.new("y"), in: Var.new("x"))).to eq(Var.new("y"))
+expect(Lambda.replace(param: "x", with: Var.new("y"), in: Var.new("z"))).to eq(Var.new("z"))
+
 # id (id (λz. id z)) -> id (λz. id z)
-puts Lambda.eval(
-  App.new(id, App.new(id, Abs.new("z", App.new(id, Var.new("z")))))
+expect(
+  Lambda.eval(App.new(id, App.new(id, Abs.new("z", App.new(id, Var.new("z")))))
+)).to eq(
+  App.new(id, Abs.new("z", App.new(id, Var.new("z"))))
 )
 
-raise unless Lambda.replace(param: "x", with: Var.new("y"), in: Var.new("x")) == Var.new("y")
-raise unless Lambda.replace(param: "x", with: Var.new("y"), in: Var.new("z")) == Var.new("z")
+expect(
+  Lambda.eval(App.new(id, Abs.new("z", App.new(id, Var.new("z")))))
+).to eq(
+  Abs.new("z", App.new(id, Var.new("z")))
+)
+
+expect(
+  Lambda.eval(App.new(App.new(id, id), Abs.new("z", Var.new("z"))))
+).to eq(
+  App.new(id, Abs.new("z", Var.new("z")))
+)
+
+expect(
+  Lambda.eval(
+    App.new(
+      Abs.new("x", Abs.new("y", App.new(Var.new("x"), Var.new("y")))),
+      Abs.new("z", Var.new("z"))
+    )
+  )
+).to eq(
+  Abs.new("y", App.new(Abs.new("z", Var.new("z")), Var.new("y")))
+)
