@@ -46,6 +46,16 @@ end
 module Lambda
   extend self
 
+  def eval_full(term)
+    begin
+      loop do
+        term = eval(term)
+      end
+    rescue
+      term
+    end
+  end
+
   def eval(term)
     case term
     when AppClass
@@ -57,7 +67,7 @@ module Lambda
         App(eval(term.left), term.right)
       end
     else
-      raise "can't eval"
+      raise "can't eval #{term}"
     end
   end
 
@@ -95,7 +105,10 @@ id = Abs("x", Var("x"))
 id_app = App(id, id)
 Lambda.eval(id_app)
 
-expect(Lambda.replace(param: "x", with: Var("y"), in: Var("x"))).to eq(Var("y"))
+expect(
+  Lambda.replace(param: "x", with: Var("y"), in: Var("x"))
+).to eq(Var("y"))
+
 expect(Lambda.replace(param: "x", with: Var("y"), in: Var("z"))).to eq(Var("z"))
 
 # id (id (λz. id z)) -> id (λz. id z)
