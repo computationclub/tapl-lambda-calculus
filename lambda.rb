@@ -1,7 +1,7 @@
 require 'rspec/expectations'
 include RSpec::Matchers
 
-App = Struct.new(:left, :right) do
+AppClass = Struct.new(:left, :right) do
   def to_s
     "(#{left} #{right})"
   end
@@ -11,7 +11,7 @@ App = Struct.new(:left, :right) do
   end
 end
 
-Abs = Struct.new(:param, :body) do
+AbsClass = Struct.new(:param, :body) do
   def to_s
     "(λ#{param}. #{body})"
   end
@@ -21,7 +21,7 @@ Abs = Struct.new(:param, :body) do
   end
 end
 
-Var = Struct.new(:name) do
+VarClass = Struct.new(:name) do
   def to_s
     name
   end
@@ -31,18 +31,30 @@ Var = Struct.new(:name) do
   end
 end
 
+def App(left, right)
+  AppClass.new(left, right)
+end
+
+def Abs(param, body)
+  AbsClass.new(param, body)
+end
+
+def Var(name)
+  VarClass.new(name)
+end
+
 module Lambda
   extend self
 
   def eval(term)
     case term
-    when App
-      if term.left.is_a?(Abs) && term.right.is_a?(Abs) # E-AppAbs
+    when AppClass
+      if term.left.is_a?(AbsClass) && term.right.is_a?(AbsClass) # E-AppAbs
         replace(param: term.left.param, with: term.right, in: term.left.body)
-      elsif term.left.is_a?(Abs) # E-App2
-        App.new(term.left, eval(term.right))
+      elsif term.left.is_a?(AbsClass) # E-App2
+        App(term.left, eval(term.right))
       else # E-App1
-        App.new(eval(term.left), term.right)
+        App(eval(term.left), term.right)
       end
     else
       raise "can't eval"
@@ -55,20 +67,20 @@ module Lambda
     term = opts.fetch(:in)
 
     case term
-    when Var
+    when VarClass
       if term.name == param
         with
       else
         term
       end
-    when Abs
+    when AbsClass
       if term.param == param
         term
       else
-        Abs.new(term.param, replace(param: param, with: with, in: term.body))
+        Abs(term.param, replace(param: param, with: with, in: term.body))
       end
-    when App
-      App.new(
+    when AppClass
+      App(
         replace(param: param, with: with, in: term.left),
         replace(param: param, with: with, in: term.right),
       )
@@ -77,52 +89,52 @@ module Lambda
 end
 
 # λx. x
-id = Abs.new("x", Var.new("x"))
+id = Abs("x", Var("x"))
 
 # id id
-id_app = App.new(id, id)
+id_app = App(id, id)
 Lambda.eval(id_app)
 
-expect(Lambda.replace(param: "x", with: Var.new("y"), in: Var.new("x"))).to eq(Var.new("y"))
-expect(Lambda.replace(param: "x", with: Var.new("y"), in: Var.new("z"))).to eq(Var.new("z"))
+expect(Lambda.replace(param: "x", with: Var("y"), in: Var("x"))).to eq(Var("y"))
+expect(Lambda.replace(param: "x", with: Var("y"), in: Var("z"))).to eq(Var("z"))
 
 # id (id (λz. id z)) -> id (λz. id z)
 expect(
-  Lambda.eval(App.new(id, App.new(id, Abs.new("z", App.new(id, Var.new("z")))))
+  Lambda.eval(App(id, App(id, Abs("z", App(id, Var("z")))))
 )).to eq(
-  App.new(id, Abs.new("z", App.new(id, Var.new("z"))))
+  App(id, Abs("z", App(id, Var("z"))))
 )
 
 expect(
-  Lambda.eval(App.new(id, Abs.new("z", App.new(id, Var.new("z")))))
+  Lambda.eval(App(id, Abs("z", App(id, Var("z")))))
 ).to eq(
-  Abs.new("z", App.new(id, Var.new("z")))
+  Abs("z", App(id, Var("z")))
 )
 
 expect(
-  Lambda.eval(App.new(App.new(id, id), Abs.new("z", Var.new("z"))))
+  Lambda.eval(App(App(id, id), Abs("z", Var("z"))))
 ).to eq(
-  App.new(id, Abs.new("z", Var.new("z")))
-)
-
-expect(
-  Lambda.eval(
-    App.new(
-      Abs.new("x", Abs.new("y", App.new(Var.new("x"), Var.new("y")))),
-      Abs.new("z", Var.new("z"))
-    )
-  )
-).to eq(
-  Abs.new("y", App.new(Abs.new("z", Var.new("z")), Var.new("y")))
+  App(id, Abs("z", Var("z")))
 )
 
 expect(
   Lambda.eval(
-    App.new(
-      Abs.new("x", Abs.new("x", Var.new("x"))),
-      Abs.new("z", Var.new("z"))
+    App(
+      Abs("x", Abs("y", App(Var("x"), Var("y")))),
+      Abs("z", Var("z"))
     )
   )
 ).to eq(
-  Abs.new("x", Var.new("x"))
+  Abs("y", App(Abs("z", Var("z")), Var("y")))
+)
+
+expect(
+  Lambda.eval(
+    App(
+      Abs("x", Abs("x", Var("x"))),
+      Abs("z", Var("z"))
+    )
+  )
+).to eq(
+  Abs("x", Var("x"))
 )
