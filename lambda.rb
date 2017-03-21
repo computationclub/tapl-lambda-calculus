@@ -5,17 +5,29 @@ App = Struct.new(:left, :right) do
   def to_s
     "(#{left} #{right})"
   end
+
+  def inspect
+    to_s
+  end
 end
 
 Abs = Struct.new(:param, :body) do
   def to_s
     "(λ#{param}. #{body})"
   end
+
+  def inspect
+    to_s
+  end
 end
 
 Var = Struct.new(:name) do
   def to_s
     name
+  end
+
+  def inspect
+    to_s
   end
 end
 
@@ -50,7 +62,11 @@ module Lambda
         term
       end
     when Abs
-      Abs.new(term.param, replace(param: param, with: with, in: term.body))
+      if term.param == param
+        term
+      else
+        Abs.new(term.param, replace(param: param, with: with, in: term.body))
+      end
     when App
       App.new(
         replace(param: param, with: with, in: term.left),
@@ -98,4 +114,15 @@ expect(
   )
 ).to eq(
   Abs.new("y", App.new(Abs.new("z", Var.new("z")), Var.new("y")))
+)
+
+expect(
+  Lambda.eval(
+    App.new(
+      Abs.new("x", Abs.new("x", Var.new("x"))),
+      Abs.new("z", Var.new("z"))
+    )
+  )
+).to eq(
+  Abs.new("x", Var.new("x"))
 )
