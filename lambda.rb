@@ -103,7 +103,9 @@ id = Abs("x", Var("x"))
 
 # id id
 id_app = App(id, id)
-Lambda.eval(id_app)
+expect(
+  Lambda.eval(id_app)
+).to eq(id)
 
 expect(
   Lambda.replace(param: "x", with: Var("y"), in: Var("x"))
